@@ -1,0 +1,31 @@
+{
+  "name": "bm-sssp",
+  "version": "1.0.0",
+  "description": "",
+  "keywords": [
+    "shortest",
+    "path",
+    "search",
+    "graph"
+  ],
+  "license": "MIT",
+  "author": "Maninder Singh",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --ext .ts",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "@typescript-eslint/eslint-plugin": "^8.41.0",
+    "@typescript-eslint/parser": "^8.41.0",
+    "eslint": "^9.34.0",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.2"
+  }
+}
+

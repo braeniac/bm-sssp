@@ -1,0 +1,55 @@
+node_moduels# Node dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build output
+dist/
+build/
+coverage/
+
+# TypeScript
+*.tsbuildinfo
+
+# Local env files
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs/
+*.pid
+*.seed
+*.pid.lock
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# OS files
+ehthumbs.db
+Desktop.ini
+
+# Optional lock files (if you want to commit only one)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Rust (for optional rust-core → wasm)
+rust-core/target/
+*.rs.bk
+
+# WASM build artifacts
+pkg/
+*.wasm
+
+# Misc
+.nyc_output
+.eslintcache
+.prettier-cache
