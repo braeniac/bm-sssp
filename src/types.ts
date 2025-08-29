@@ -10,8 +10,7 @@ export type Edge = {
     w : number
 }
 
-export type GraphInput = 
-{
+export type GraphInput = {
     /** Number of verticies possibly 0..n-1 */
     n : number, 
     /** Edge list */
@@ -62,7 +61,7 @@ export type SSSPOptions = {
      * 
      * 2 → pred[2] = 1 → pred[1] = 0 → pred[0] = -1
     */
-    returnPrecessors ?: boolean,
+    returnPredecessors ?: boolean,
     /**
      * Tuning knobs
      * kSteps: relax depth per phase 
@@ -74,7 +73,39 @@ export type SSSPOptions = {
 
 export type SSSPResult = {
   /** shortest distances from source; +Infinity where unreachable */
-  dist: Float64Array
+  dist: Float64Array 
   /** predecessor array (only if requested) */
   pred?: Int32Array
 };
+
+
+export type GSRGraph = {
+    /** the number of verticies in the graph */
+    n : number, 
+    /** the number of edges in the graph*/
+    m: number,
+    /** true if the graph is directed; false if it undirected */
+    directed : Boolean,
+    /**
+     * rowPtr is an array of length n+1, where n is the number of verticies
+     * It doens't store neighbours directly - it stores indicies (pointers) into 
+     * the cols and weights arrays.
+     * 
+     * For vertex u, 
+     * its outgoing edges live in: 
+     * cols[rowPtr[u] .. rowPtr[u+1]-1] 
+     * weights[rowPtr[u] .. rowPtr[u+1]-1]
+     */
+    rowPtr: Int32Array,
+    /**
+     * cols: adjacency list "flattened" into one big array
+     * of length m, where each entry is the target vertex v of an edge u -> v.
+     */
+    cols: Int32Array,
+    /**
+     * weights: parallel to 'cols'
+     * length m, each entry is the edge weight w(u->v)
+     * Note: this is always non-negative
+     */
+    weights: Float64Array
+}

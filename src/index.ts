@@ -1,19 +1,17 @@
 export const VERSION = "0.1.0-dev"; 
 
 import { 
-    Vertex, 
-    Edge, 
     GraphInput,
     SSSPOptions, 
     SSSPResult 
 } from "./types.js";
+export { buildGraph } from "./graph.js";
 
 /** === Public API === */
 
 export function sssp(graph : GraphInput, options : SSSPOptions) : SSSPResult {
 
     //basic runtime checks
-
     if (!graph || typeof graph != 'object') {
         throw new TypeError("sssp(graph, options): 'graph' must be an object.");
     }
@@ -28,10 +26,17 @@ export function sssp(graph : GraphInput, options : SSSPOptions) : SSSPResult {
         throw new RangeError("sssp(graph, options): options.source must be an integer in [0, n).");
     }
 
-    //TODO-------
-    throw new Error(
-        "bm-sssp: core algorithm not implemented yet"
-    );
+    const dist = new Float64Array(n);
+    dist.fill(Infinity);
+    dist[options.source] = 0;
+
+    let pred: Int32Array | undefined;
+    if (options.returnPredecessors) {
+        pred = new Int32Array(n);
+        pred.fill(-1);
+    }
+    return { dist, pred }; 
+   
 }
 
 /** Convenience helper for consumers to detect library presence/version */
