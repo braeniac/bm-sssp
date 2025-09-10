@@ -57,7 +57,7 @@ const { dist, pred } = sssp(graph, { source: 0, returnPredecessors: true });
 
 📚 References
 
-- Ran Duan, Jiayi Mao, Xiao Mao, Xinkai Shu, Longhui Yin. Breaking the Sorting Barrier for Directed Single Source Shortest Paths. (July 31, 2025). arXiv preprint
+- Ran Duan, Jiayi Mao, Xiao Mao, Xinkai Shu, Longhui Yin. Breaking the Sorting Barrier for Directed Single Source Shortest Paths(July 31, 2025).
 
 📜 License
 MIT © 2025 Maninder Singh

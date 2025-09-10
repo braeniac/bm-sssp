@@ -11,12 +11,24 @@
   "license": "MIT",
   "author": "Maninder Singh",
   "type": "module",
-  "main": "index.js",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint . --ext .ts",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev": "tsx ./example/small.ts"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",
@@ -25,7 +37,10 @@
     "eslint": "^9.34.0",
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.6.2",
+    "tsx": "^4.20.5",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"
   }
 }
+
+
