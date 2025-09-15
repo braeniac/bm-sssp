@@ -1,6 +1,5 @@
 import { Node, GraphInput, GSRGraph } from "./types.js";
 
-
 export function buildGraph(input : GraphInput) : GSRGraph { 
 
     const directed = input.directed ?? true; 

@@ -28,7 +28,7 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "dev": "tsx ./example/small.ts"
+    "dev": "tsx ./example/run-bmssp.ts"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",

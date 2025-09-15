@@ -2,7 +2,6 @@
 import { buildGraph, sssp } from "../src/index.js";
 import { fmt } from "../src/utils/pretty.js";
 
-
 // Option A: edge list
 const G1 = buildGraph({
   n: 4,
