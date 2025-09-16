@@ -12,8 +12,6 @@ export function bmSssp(g: GSRGraph, opts: SSSPOptions): SSSPResult {
   const n = g.n;
   const src = opts.source;
   if (src < 0 || src >= n) throw new Error("source out of range");
-
-
   
   // Parameters as in the paper
   const ln = Math.max(1, Math.log(Math.max(2, n)));
