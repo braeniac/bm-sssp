@@ -3,12 +3,11 @@ import { GSRGraph } from "../../core/types.js";
 /**
  * FindPivots(B, S, k)
  *
- * Pre-req: For every incomplete v with d(v) < B, its shortest path visits some complete u in S.
- * dist[] reflects current best-known distances; vertices in S should be "complete".
- *
- * Returns:
- *  - W: number[]; visited set after up to k bounded relax steps. Some may (now) be complete.
- *  - P: number[]; subset of S that are "pivots": each has a tight-tree of size >= k inside W.
+ * - Do k rounds of relaxations from S bounded by B.
+ * - Collect W (all discovered vertices).
+ * - If W grows too big (>|S| * k), return {W, P=S}.
+ * - Else build the tight-forest on W (edges where dist[v] ≈ dist[u]+w).
+ * - Return pivots = roots in S whose subtree size ≥ k.
  */
 export function findPivots(
   g: GSRGraph,
@@ -22,18 +21,16 @@ export function findPivots(
   const Wi: number[][] = [];
   const W: number[] = [];
 
-  // W0 = S
+  // Start with S
   Wi.push([...S]);
   for (const u of S) if (!inW[u]) { inW[u] = 1; W.push(u); }
 
-  // --- k rounds of bounded relax (like Bellman-Ford) ---
+  // --- k rounds ---
   for (let i = 1; i <= k; i++) {
     const prev = Wi[i - 1];
-    const nextSet: number[] = [];
-
+    const next: number[] = [];
     const before = W.length;
 
-    // Explore out-neighbors of the previous frontier, bounded by B
     for (const u of prev) {
       const du = dist[u];
       if (!Number.isFinite(du)) continue;
@@ -41,35 +38,29 @@ export function findPivots(
       for (let kk = L; kk < R; kk++) {
         const v = g.cols[kk];
         const nd = du + g.weights[kk];
-        if (!(nd < B)) continue; // respect bound
+        if (!(nd < B)) continue;
 
-        // allow <= to enable reuse across levels
         if (nd <= dist[v]) {
-          if (nd < dist[v]) dist[v] = nd; // tighten if strictly better
+          if (nd < dist[v]) dist[v] = nd;
           if (!inW[v]) {
             inW[v] = 1;
             W.push(v);
-            nextSet.push(v);
+            next.push(v);
           }
         }
       }
     }
 
-    Wi.push(nextSet);
+    Wi.push(next);
 
-    // Early stop if W exploded: |W| > k * |S|
     if (W.length > k * S.length) {
-      // In this branch, per the paper, we can set P = S.
       return { W, P: [...S] };
     }
-
-    // If no growth this round, stop early.
     if (W.length === before) break;
   }
 
-  // --- Build tight-forest F over W ---
-  // Tight edge: dist[v] == dist[u] + w  (use epsilon for floating point safety)
-  const EPS = 1e-12;
+  // --- Build tight-forest ---
+  const EPS = 1e-12; // epsilon for float safety
   const parent = new Int32Array(n).fill(-1);
 
   for (const u of W) {
@@ -78,25 +69,23 @@ export function findPivots(
     const L = g.rowPtr[u], R = g.rowPtr[u + 1];
     for (let kk = L; kk < R; kk++) {
       const v = g.cols[kk];
-      if (!inW[v]) continue; // only edges within W
+      if (!inW[v]) continue;
       const nd = du + g.weights[kk];
       if (Math.abs(nd - dist[v]) <= EPS) {
-        // choose the tight predecessor with smallest dist (stable enough for subtree sizing)
         if (parent[v] === -1 || dist[u] < dist[parent[v]]) parent[v] = u;
       }
     }
   }
 
-  // --- Subtree sizes (forest may have multiple roots) ---
+  // Subtree sizes
   const size = new Int32Array(n).fill(0);
-  const order = [...W].sort((a, b) => dist[a] - dist[b]); // ascending distance (topo-like)
+  const order = [...W].sort((a, b) => dist[a] - dist[b]);
   for (const v of order) size[v] = 1;
   for (const v of order) {
     const p = parent[v];
     if (p !== -1) size[p] += size[v];
   }
 
-  // Pivots: roots in S with subtree size >= k
   const P: number[] = [];
   for (const s of S) {
     if (parent[s] === -1 && size[s] >= k) P.push(s);

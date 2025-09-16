@@ -1,12 +1,32 @@
 // src/sssp/bmssp/psqueue.ts
+//
+// Partial-sorting queue used by BM-SSSP.
+// Operations:
+//   - insert({ key, val })               : amortized small cost
+//   - batchPrepend(L)                    : prepend a list known to be strictly smaller than current items
+//   - pull() -> { S, bound }             : remove up to M smallest *pairs* and return
+//                                          unique keys S (keeping the best val per key) and a separating bound
+//
+// Design notes:
+// - We maintain a small list of "blocks" (arrays) of {key,val} pairs.
+// - Blocks are roughly ordered by their upper-bound values (via where we insert/split).
+// - On pull(), we collect up to M pairs from the front, then dedupe by smallest val per key.
+// - The returned "bound" is the TRUE minimum val among all remaining pairs (or B if empty).
+// - We allow duplicate keys across blocks; pull() keeps the best (smallest val) one.
+// - size_ tracks number of stored *pairs*, not unique keys.
+//
+// Correctness considerations for BM-SSSP glue:
+// - Getting the true min bound is important; if the bound is too large, some items never get pulled.
+// - batchPrepend(L) assumes every val in L is < any current queue val. If a caller violates this,
+//   we defensively route those items to normal insert() so behavior stays correct (just a tad slower).
+
 export type Key = number;
 
 type Pair = { key: Key; val: number };
 
 export class PSQueue {
-  private M: number;
-  private B: number; // upper bound if queue is empty
-  // We keep a small number of blocks, each is a small array of {key,val} roughly sorted by val.
+  private M: number;         // max pairs to remove per pull()
+  private B: number;         // bound returned if queue is empty
   private blocks: Pair[][] = [];
   private size_: number = 0;
 
@@ -15,44 +35,54 @@ export class PSQueue {
     this.B = B;
   }
 
-  get size() { return this.size_; }
-  isEmpty() { return this.size_ === 0; }
+  get size(): number { return this.size_; }
+  isEmpty(): boolean { return this.size_ === 0; }
 
-  /** Insert or update single key/value. */
-  insert(p: Pair) {
-    // Find block position by upper bound (linear scan is fine; blocks stay small in our parameter regime).
-    // If you want, you can replace with binary search later.
+  /** Insert a single pair. Duplicates allowed; worse duplicates are ignored on pull(). */
+  insert(p: Pair): void {
+    // Find a block whose current (approx) upper bound can accommodate p.
+    // Linear scan is fine; blocks remain small under our parameter choices.
     let i = 0;
     for (; i < this.blocks.length; i++) {
-      const last = this.blocks[i][this.blocks[i].length - 1];
+      const blk = this.blocks[i];
+      const last = blk.length ? blk[blk.length - 1] : undefined;
       if (!last || p.val <= last.val) break;
     }
     if (i === this.blocks.length) this.blocks.push([]);
-    // If key exists in this block chain, keep the smaller val
-    // For simplicity, we’ll just insert; duplicates of a key with worse val will be filtered on pull.
-    this.blocks[i].push(p);
-    this.size_ += 1;
+    const blk = this.blocks[i];
+    blk.push(p);
+    this.size_++;
 
-    // Split block if it grows too large (~M). Keeps amortized bounds reasonable.
-    if (this.blocks[i].length > this.M) {
-      const b = this.blocks[i];
-      b.sort((a, b) => a.val - b.val);
-      const mid = Math.ceil(b.length / 2);
-      const left = b.slice(0, mid);
-      const right = b.slice(mid);
+    // If a block grows too large, split it to keep ops cheap.
+    if (blk.length > this.M) {
+      blk.sort((a, b) => a.val - b.val);
+      const mid = Math.ceil(blk.length / 2);
+      const left = blk.slice(0, mid);
+      const right = blk.slice(mid);
       this.blocks.splice(i, 1, left, right);
     }
   }
 
-  /** Batch prepend L where every val in L is smaller than any current val (by contract). */
-  batchPrepend(L: Pair[]) {
+  /**
+   * Prepend a list L that (by contract) has values strictly smaller than any current queue val.
+   * We still defensively check and route any non-small elements through normal insert().
+   */
+  batchPrepend(L: Pair[]): void {
     if (!L.length) return;
-    // Keep a block size ≤ M to preserve amortized guarantees.
-    // We can chunk L into blocks of size ≤ M and put them at the front.
-    // Sort each chunk by val ascending to make future pulls simpler.
+
+    const curMin = this.peekGlobalMin(); // Infinity if empty
+    const smaller: Pair[] = [];
+    // Split L into "definitely smaller" and "not smaller" (defensive)
+    for (const p of L) {
+      if (p.val < curMin) smaller.push(p);
+      else this.insert(p);
+    }
+    if (!smaller.length) return;
+
+    // To keep blocks tidy, chunk and sort before unshifting.
     const chunkSize = Math.max(1, Math.floor(this.M / 2));
-    for (let i = 0; i < L.length; i += chunkSize) {
-      const chunk = L.slice(i, i + chunkSize);
+    for (let i = 0; i < smaller.length; i += chunkSize) {
+      const chunk = smaller.slice(i, i + chunkSize);
       chunk.sort((a, b) => a.val - b.val);
       this.blocks.unshift(chunk);
       this.size_ += chunk.length;
@@ -60,16 +90,16 @@ export class PSQueue {
   }
 
   /**
-   * Pull up to M smallest pairs.
-   * Returns: { S, bound }
-   *  - S: an array of keys (deduped by smallest val seen)
-   *  - bound: a separating value x (if queue still has items) or B (if empty)
+   * Pull up to M pairs with the smallest values.
+   * Returns:
+   *  - S: unique keys among the pulled pairs (keeping the smallest val per key)
+   *  - bound: the TRUE minimum value remaining in the queue (or B if empty)
    */
   pull(): { S: Key[]; bound: number } {
     if (this.isEmpty()) return { S: [], bound: this.B };
 
+    // Collect pairs from the front blocks until we reach M (or run out).
     const acc: Pair[] = [];
-    // Collect from front blocks until we have at least M items or we run out.
     while (this.blocks.length && acc.length < this.M) {
       const front = this.blocks[0];
       while (front.length && acc.length < this.M) {
@@ -78,33 +108,40 @@ export class PSQueue {
       if (front.length === 0) this.blocks.shift();
     }
 
-    // Deduplicate by smallest val for each key (keep the best one)
+    // Deduplicate by smallest val per key.
     const best = new Map<Key, number>();
     for (const p of acc) {
       const prev = best.get(p.key);
       if (prev === undefined || p.val < prev) best.set(p.key, p.val);
     }
 
-    // Compute bound: the min val left in queue, or B if empty
-    let bound = this.B;
-    if (!this.isEmpty()) {
-      let minVal = Infinity;
-      // Peek at the smallest remaining val (front of first block)
-      outer: for (let i = 0; i < this.blocks.length; i++) {
-        const blk = this.blocks[i];
-        if (!blk.length) continue;
-        // block not guaranteed sorted globally but front items tend to be smaller
-        for (let j = 0; j < Math.min(4, blk.length); j++) {
-          if (blk[j].val < minVal) minVal = blk[j].val;
-        }
-        // scanning a few items is fine; amortized cost stays small
-        if (minVal < Infinity) break outer;
-      }
-      if (minVal < Infinity) bound = minVal;
-    }
+    // Compute the true global min among the remaining pairs (not just a peek).
+    const bound = this.computeTrueMinOrB();
 
-    const S = Array.from(best.keys());
-    this.size_ -= acc.length; // logical items removed
-    return { S, bound };
+    // Maintain pair count (we removed acc.length pairs).
+    this.size_ -= acc.length;
+
+    return { S: Array.from(best.keys()), bound };
+  }
+
+  // --- helpers ---
+
+  /** Return Infinity if empty; otherwise the smallest value among all remaining pairs. */
+  private peekGlobalMin(): number {
+    if (this.isEmpty()) return Infinity;
+    let minVal = Infinity;
+    for (const blk of this.blocks) {
+      for (const p of blk) {
+        if (p.val < minVal) minVal = p.val;
+      }
+    }
+    return minVal;
+  }
+
+  /** Compute true min remaining or return B if empty. */
+  private computeTrueMinOrB(): number {
+    if (this.isEmpty()) return this.B;
+    const m = this.peekGlobalMin();
+    return Number.isFinite(m) ? m : this.B;
   }
 }

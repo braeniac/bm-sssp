@@ -1,13 +1,8 @@
-import { GSRGraph } from "../../core/types.js";
+import { GSRGraph } from "../../core/types.js"; 
 
-/**
- * Relax all outgoing edges of u (CSR) against dist[] with optional bound B.
- * - If nd = dist[u] + w is < dist[v], we update dist[v] (and pred if provided).
- * - If eqOK is true, we allow nd <= dist[v] (paper uses ≤ to reuse edges across levels).
- * - If boundB is provided, we only consider updates with nd < boundB.
- *
- * Returns: number of successful relaxations (updates performed or equals-allowed hits).
- */
+// Relax all edges out of u.
+// If boundB is given, only consider neighbors with nd < boundB.
+// eqOK=true allows "≤" updates (paper requires this for reuse across levels).
 export function relaxOutNeighbors(
   g: GSRGraph,
   u: number,
@@ -25,24 +20,20 @@ export function relaxOutNeighbors(
     const v = g.cols[k];
     const nd = du + g.weights[k];
 
-    if (boundB !== undefined && !(nd < boundB)) {
-      continue; // bounded BMSSP relax
-    }
+    if (boundB !== undefined && !(nd < boundB)) continue;
 
-    // Compare with <= if eqOK, else <
     if ((eqOK && nd <= dist[v]) || (!eqOK && nd < dist[v])) {
-      dist[v] = nd;
-      if (pred) pred[v] = u;
+      if (nd < dist[v]) {
+        dist[v] = nd;
+        if (pred) pred[v] = u;
+      }
       updates++;
     }
   }
   return updates;
 }
 
-/**
- * One "Bellman-Ford-style" step over a frontier set U: relax all edges out of all u in U.
- * Returns total relaxations.
- */
+// Relax from a whole set of vertices
 export function relaxFromSet(
   g: GSRGraph,
   U: number[],

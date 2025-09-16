@@ -1,18 +1,10 @@
-import { GSRGraph, SSSPResult } from "../../core/types.js";
+import { GSRGraph } from "../../core/types.js";
 
 /**
- * BaseCase(B, S={x}) — Mini-Dijkstra bounded by B.
- *
- * Pre-req:
- *  - S is a singleton {x}
- *  - x is "complete" relative to current dist[] (dist[x] is final)
- *  - Every incomplete v with d(v) < B has its shortest path going through x
- *
- * Returns:
- *  - Bprime: number <= B
- *  - U: number[] (the set of vertices completed here)
- *
- * We assume a caller-managed dist[] and pred[] (so we can compare with oracle).
+ * Base case mini-Dijkstra bounded by B, starting from x.
+ * Pops up to k+1 vertices.
+ * - If fewer than k+1, returns B' = B and all popped vertices in U.
+ * - Else returns B' = max popped distance and U = those < B'.
  */
 export function baseCase(
   g: GSRGraph,
@@ -26,6 +18,7 @@ export function baseCase(
   const heap: Item[] = [];
   const inHeap = new Uint8Array(g.n);
 
+  // --- Heap helpers (same as Dijkstra) ---
   const push = (it: Item) => { heap.push(it); up(heap.length - 1); };
   const up = (i: number) => {
     while (i > 0) {
@@ -53,48 +46,39 @@ export function baseCase(
     }
   };
 
-  // Initialize with x
   push({ v: x, d: dist[x] });
   inHeap[x] = 1;
 
-  const U0: number[] = [];
+  const popped: number[] = [];
 
-  while (heap.length && U0.length < k + 1) {
+  while (heap.length && popped.length < k + 1) {
     const it = pop()!;
     const u = it.v;
-    if (it.d !== dist[u]) continue; // stale
-    U0.push(u);
+    if (it.d !== dist[u]) continue; // stale entry
+    popped.push(u);
 
-    // relax out-neighbors if within bound B
+    // Relax edges bounded by B
     const L = g.rowPtr[u], R = g.rowPtr[u + 1];
     for (let kk = L; kk < R; kk++) {
       const v = g.cols[kk];
       const nd = dist[u] + g.weights[kk];
-
-      if (!(nd < B)) continue; // respect bound
+      if (!(nd < B)) continue;
 
       if (nd < dist[v]) {
         dist[v] = nd;
         if (pred) pred[v] = u;
-        if (inHeap[v]) {
-          // decrease-key: insert again; stale entries will be skipped
-          push({ v, d: nd });
-        } else {
-          inHeap[v] = 1;
-          push({ v, d: nd });
-        }
+        push({ v, d: nd });
+        inHeap[v] = 1;
       }
     }
   }
 
-  if (U0.length <= k) {
-    // We didn’t reach k+1; success with B' = B and U = U0
-    return { Bprime: B, U: U0 };
+  if (popped.length <= k) {
+    return { Bprime: B, U: popped };
   } else {
-    // We found k+1 vertices; set B' to the max dist among them, and return those strictly below B'
     let Bprime = -Infinity;
-    for (const v of U0) if (dist[v] > Bprime) Bprime = dist[v];
-    const U = U0.filter(v => dist[v] < Bprime);
+    for (const v of popped) if (dist[v] > Bprime) Bprime = dist[v];
+    const U = popped.filter(v => dist[v] < Bprime);
     return { Bprime, U };
   }
 }
